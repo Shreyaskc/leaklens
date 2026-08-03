@@ -1,4 +1,4 @@
-\begin{thebibliography}{9}
+\begin{thebibliography}{10}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -69,5 +69,13 @@ Shuo Yang, Wei-Lin Chiang, Lianmin Zheng, Joseph~E Gonzalez, and Ion Stoica.
 \newblock Rethinking benchmark and contamination for language models with
   rephrased samples.
 \newblock \emph{arXiv preprint arXiv:2311.04850}, 2023.
+
+\bibitem[Zhang et~al.(2025)Zhang, Dev, Wang, Obreiter, Pandey, Samway, Jiang,
+  Huang, Sch{\"o}lkopf, Sachan, and Jin]{zhang2025testoftime}
+Terry~Jingchen Zhang, Gopal Dev, Ning Wang, Max Obreiter, Punya~Syon Pandey,
+  Keenan Samway, Wenyuan Jiang, Yinya Huang, Bernhard Sch{\"o}lkopf, Mrinmaya
+  Sachan, and Zhijing Jin.
+\newblock Test of time: Rethinking temporal signal of benchmark contamination.
+\newblock \emph{arXiv preprint arXiv:2509.00072}, 2025.
 
 \end{thebibliography}

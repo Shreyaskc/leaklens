@@ -1,0 +1,17 @@
+{
+  "model": "EleutherAI/pythia-410m",
+  "split": "WikiMIA_length64",
+  "n_items": 150,
+  "results": {
+    "min_k_prob": {
+      "auc": 0.5341071428571429,
+      "n_member": 80,
+      "n_nonmember": 70
+    },
+    "perplexity_gap": {
+      "auc": 0.5335714285714286,
+      "n_member": 80,
+      "n_nonmember": 70
+    }
+  }
+}

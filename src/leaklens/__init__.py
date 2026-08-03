@@ -2,7 +2,7 @@ __version__ = "0.1.0"
 
 from .audit import audit
 from .base import Benchmark, BenchmarkItem, DetectorResult, ModelInterface, ReportCard, TokenLogprob
-from .models import CallableModelInterface, MLXModelInterface
+from .models import CallableModelInterface, MLXModelInterface, TransformersModelInterface
 
 __all__ = [
     "audit",
@@ -14,4 +14,5 @@ __all__ = [
     "TokenLogprob",
     "CallableModelInterface",
     "MLXModelInterface",
+    "TransformersModelInterface",
 ]

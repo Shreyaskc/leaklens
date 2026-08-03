@@ -4,8 +4,11 @@
 callable, the same duck-typing philosophy as wattbench's API wrappers — it
 keeps leaklens from hard-depending on the OpenAI/Anthropic/Google SDKs.
 `MLXModelInterface` wraps a local MLX-LM model and exposes real per-token
-logprobs, so it's the only concrete backend here that satisfies
-`supports_logprobs=True` without needing a rented GPU.
+logprobs on Apple Silicon without a rented GPU. `TransformersModelInterface`
+wraps any HF `transformers` causal LM instead -- needed for models with no
+MLX conversion available (e.g. the older GPT-NeoX/Pythia/OPT-era models
+that contamination benchmarks like WikiMIA were actually calibrated
+against), at the cost of slower CPU/MPS inference vs. MLX's Metal backend.
 """
 from __future__ import annotations
 
@@ -64,6 +67,56 @@ class MLXModelInterface(ModelInterface):
 
         results = []
         # log_probs[0, i] predicts token i+1 given tokens[0..i].
+        for i in range(len(token_ids) - 1):
+            next_token_id = token_ids[i + 1]
+            lp = float(log_probs[0, i, next_token_id])
+            token_str = self._tokenizer.decode([next_token_id])
+            results.append(TokenLogprob(token=token_str, logprob=lp))
+        return results
+
+
+class TransformersModelInterface(ModelInterface):
+    """Local HF `transformers` causal LM: same capability as MLXModelInterface
+    (behavioral probes + real per-token logprobs), for models without an
+    MLX conversion. Uses MPS (Apple Silicon GPU via Metal) when available,
+    falling back to CPU."""
+
+    supports_logprobs = True
+
+    def __init__(self, model_repo: str, device: str | None = None):
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        self.name = model_repo
+        self._device = device or ("mps" if torch.backends.mps.is_available() else "cpu")
+        self._tokenizer = AutoTokenizer.from_pretrained(model_repo)
+        self._model = AutoModelForCausalLM.from_pretrained(model_repo).to(self._device)
+        self._model.eval()
+
+    def generate(self, prompt: str, max_tokens: int) -> str:
+        import torch
+
+        inputs = self._tokenizer(prompt, return_tensors="pt").to(self._device)
+        with torch.no_grad():
+            output_ids = self._model.generate(
+                **inputs, max_new_tokens=max_tokens, do_sample=False, pad_token_id=self._tokenizer.eos_token_id
+            )
+        new_tokens = output_ids[0, inputs["input_ids"].shape[1] :]
+        return self._tokenizer.decode(new_tokens, skip_special_tokens=True)
+
+    def token_logprobs(self, text: str) -> list[TokenLogprob]:
+        import torch
+
+        token_ids = self._tokenizer.encode(text)
+        if len(token_ids) < 2:
+            return []
+
+        input_ids = torch.tensor([token_ids]).to(self._device)
+        with torch.no_grad():
+            logits = self._model(input_ids).logits
+        log_probs = torch.log_softmax(logits.float(), dim=-1)
+
+        results = []
         for i in range(len(token_ids) - 1):
             next_token_id = token_ids[i + 1]
             lp = float(log_probs[0, i, next_token_id])

@@ -55,7 +55,14 @@ respectively, on this small $n=15$ pilot); a fourth detector,
 order-sensitivity, scored at chance, and we trace this to a genuine
 methodological artifact in the calibration's own training-data design
 (documented in Section~\ref{sec:calibration}) rather than to a flaw in the
-detection method itself. All six of the toolkit's dataset benchmark
+detection method itself. We additionally ran the two logprob detectors
+against WikiMIA, Min-K\% Prob's own published membership-inference
+benchmark, using both a model outside its reference set (near-chance,
+AUC $0.49$--$0.50$) and a genuine member of the model family it was
+calibrated against (weakly above chance, AUC $0.53$, still below the
+original paper's own reported effect sizes) -- an honestly-reported,
+modest external check rather than a search for a flattering number. All
+six of the toolkit's dataset benchmark
 adapters (MMLU, GSM8K, HumanEval, ARC, HellaSwag, TruthfulQA) are verified
 against the live HuggingFace \texttt{datasets-server} API rather than
 assumed from memory. \texttt{leaklens} is available at
@@ -303,6 +310,49 @@ indicative first pass, not the larger multi-model calibration suite (with
 true/false positive rates across many models and content types) that a
 mature calibration study would require.
 
+\section{External Validation on an Established Benchmark}
+\label{sec:wikimia}
+
+The calibration pilot (Section~\ref{sec:calibration}) validates the
+detectors' mechanics on a model we controlled end to end, but does not by
+itself show they work against independently-constructed ground truth. We
+additionally ran \texttt{min\_k\_prob} and \texttt{perplexity\_gap}
+against WikiMIA \citep{shi2023detecting}, the membership-inference
+benchmark the Min-K\% Prob paper itself introduces, which has real
+member/non-member labels from actual pretraining runs of published
+models (LLaMA-1/2, GPT-NeoX, OPT, Pythia, and others).
+
+Two runs, both on the \texttt{WikiMIA\_length64} split: against
+Llama-3.2-3B-Instruct (a model not in WikiMIA's own reference set, with a
+different, later training run than any model the benchmark was
+calibrated against), both detectors scored at chance (AUC $0.49$ and
+$0.50$, $n=542$). Against EleutherAI/Pythia-410M -- a genuine member of
+the model family WikiMIA validates against, run via a newly added
+\texttt{TransformersModelInterface} backend, since no MLX conversion of
+Pythia exists -- both detectors scored only weakly above chance (AUC
+$0.53$, $n=150$), notably lower than the effect sizes \citet{shi2023detecting}
+themselves report. We did not search over additional models or
+hyperparameters (e.g.\ a different $k$\% or a larger Pythia checkpoint) to
+find a stronger number; we report the two results obtained.
+
+We read this as a genuinely informative, if modest, negative-leaning
+result, for two compounding reasons. First, membership-inference ground
+truth is inherently model-specific: WikiMIA's labels reflect whether a
+passage was in one \emph{particular} model's training run, and there is
+no reason a different model's detector scores should separate on that
+same labeling, which is exactly what the near-chance Llama-3.2 result
+shows. Second, even holding the model family fixed (Pythia), effect size
+in the membership-inference literature is well documented to grow with
+model scale, and 410M is at the small end of what WikiMIA's own paper
+evaluates. Read together with \citet{zhang2025testoftime}'s recent finding
+that post-cutoff/temporal contamination signals are considerably less
+robust and more setup-dependent than commonly assumed, this external
+check supports a specific, narrower claim than the calibration pilot
+alone would suggest: leaklens's logprob detectors show a real but
+model-scale- and model-family-dependent signal, not a universally
+strong one, and that dependency should be treated as a first-class
+finding rather than tuned away.
+
 \section{Validation}
 
 The package includes 74 unit and integration tests (99\% statement
@@ -332,7 +382,12 @@ is not yet part of the released detector set. Paraphrase gap's data gap
 their own paraphrases. Order canary's null result in this pilot
 (Section~\ref{sec:calibration}) means we do not yet have a clean
 calibration data point for that detector; the diagnosis suggests a fix,
-but the fix itself has not yet been run.
+but the fix itself has not yet been run. The WikiMIA external check
+(Section~\ref{sec:wikimia}) found only a weak signal even against a model
+WikiMIA was actually calibrated against, and near-chance against a
+different one -- a real, unresolved gap between the toolkit's synthetic
+calibration and its behavior on an independently-labeled benchmark, not a
+gap we consider closed by this paper.
 
 \section{Ethics Statement}
 

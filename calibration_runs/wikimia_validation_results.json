@@ -1,0 +1,19 @@
+{
+  "benchmark": "WikiMIA (Shi et al. 2023)",
+  "split": "WikiMIA_length64",
+  "model": "mlx-community/Llama-3.2-3B-Instruct-4bit",
+  "n_items_total": 542,
+  "scope_note": "Independent re-check on an established benchmark, NOT a reproduction of Shi et al.'s original reported AUCs -- WikiMIA's splits were calibrated against older models (LLaMA-1/2, GPT-Neo, OPT, Pythia, text-davinci) with different training cutoffs than the model used here.",
+  "results": {
+    "min_k_prob": {
+      "auc": 0.49142919532700075,
+      "n_member": 284,
+      "n_nonmember": 258
+    },
+    "perplexity_gap": {
+      "auc": 0.4961786221203188,
+      "n_member": 284,
+      "n_nonmember": 258
+    }
+  }
+}
