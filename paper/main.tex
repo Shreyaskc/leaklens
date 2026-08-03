@@ -165,6 +165,20 @@ to run against an API-only model, the report card records
 \texttt{applicable=False} with an explicit reason rather than crashing or
 silently omitting the row. This matters for reproducibility: a report card
 should show what was \emph{not} checked, not just what was.
+Figure~\ref{fig:architecture} illustrates the full flow from a model and
+benchmark, through the six detectors, to a report card.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/architecture.pdf}
+\caption{\texttt{leaklens} architecture. \texttt{audit(model, benchmark)}
+dispatches to six detector plugins, three of which require token
+logprobs (blue) and three of which are behavioral and work against any
+model exposing \texttt{generate()} (amber). Each detector's applicability
+to the given model is checked before it runs; the result is a single
+\texttt{ReportCard}.}
+\label{fig:architecture}
+\end{figure}
 
 \subsection{Detectors}
 
@@ -351,11 +365,26 @@ check supports a specific, narrower claim than the calibration pilot
 alone would suggest: leaklens's logprob detectors show a real but
 model-scale- and model-family-dependent signal, not a universally
 strong one, and that dependency should be treated as a first-class
-finding rather than tuned away.
+finding rather than tuned away. Figure~\ref{fig:auc} places the
+calibration pilot's AUC-ROC values (Table~\ref{tab:calibration}) side by
+side with the WikiMIA external-validation results, making the gap between
+the two settings visible at a glance.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/auc_comparison.pdf}
+\caption{AUC-ROC for the model-dependent detectors under the calibration
+pilot (left; Section~\ref{sec:calibration}) versus WikiMIA external
+validation (right; Section~\ref{sec:wikimia}). The dashed line marks
+chance (AUC $0.5$). Detectors that separate cleanly on the pilot's own
+fine-tuned models fall back toward chance on an independently-labeled
+benchmark, especially against a model outside WikiMIA's reference set.}
+\label{fig:auc}
+\end{figure}
 
 \section{Validation}
 
-The package includes 74 unit and integration tests (99\% statement
+The package includes 81 unit and integration tests (99\% statement
 coverage), including tests that exercise the real, live infini-gram API
 response schema (not a hand-written mock of an assumed schema), the real
 MLX-based logprob computation validated against expected model behavior
