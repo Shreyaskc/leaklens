@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.pytest_cache/
+.coverage
+build/
+dist/
+.idea/
+.DS_Store
+
+# Anonymized ARR/peer-review submission — must NEVER be pushed to this
+# public, non-anonymous repo. Linking "Anonymous ACL submission" back to
+# this identified repository would defeat double-blind review entirely.
+# Keep local-only; upload directly to OpenReview instead.
+paper/arr/
+
+# Phase 3 calibration fine-tune outputs and the registry's raw audit run
+# outputs -- large, regenerable, published separately (HF / registry site)
+# rather than committed here.
+calibration_runs/
+registry_data/

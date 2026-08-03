@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leaklens"
+version = "0.1.0"
+description = "Unified benchmark-contamination detection toolkit for LLMs: n-gram overlap, membership inference, guided completion, order-canary, and paraphrase-gap probes behind one API."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Shreyas KC" }]
+dependencies = [
+    "requests>=2.28",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+transformers = ["transformers>=4.30", "torch>=2.0"]
+mlx = ["mlx-lm>=0.19"]
+datasets = ["datasets>=2.14"]
+test = ["pytest>=7.0", "pytest-cov>=4.0", "responses>=0.23"]
+
+[project.scripts]
+leaklens = "leaklens.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["leaklens*"]
+
+[tool.setuptools.package-data]
+leaklens = ["data/*.yaml", "data/*.json"]
