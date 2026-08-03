@@ -1,4 +1,4 @@
-\begin{thebibliography}{4}
+\begin{thebibliography}{9}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -24,6 +24,19 @@ Nicholas Carlini, Florian Tram{\`e}r, Eric Wallace, Matthew Jagielski, Ariel
 \newblock In \emph{30th USENIX Security Symposium (USENIX Security 21)}, pages
   2633--2650, 2021.
 
+\bibitem[Golchin and Surdeanu(2023)]{golchin2023timetravel}
+Shahriar Golchin and Mihai Surdeanu.
+\newblock Time travel in llms: Tracing data contamination in large language
+  models.
+\newblock \emph{arXiv preprint arXiv:2308.08493}, 2023.
+
+\bibitem[Lee et~al.(2021)Lee, Ippolito, Nystrom, Zhang, Eck, Callison-Burch,
+  and Carlini]{lee2021deduplicating}
+Katherine Lee, Daphne Ippolito, Andrew Nystrom, Chiyuan Zhang, Douglas Eck,
+  Chris Callison-Burch, and Nicholas Carlini.
+\newblock Deduplicating training data makes language models better.
+\newblock \emph{arXiv preprint arXiv:2107.06499}, 2021.
+
 \bibitem[Liu et~al.(2024)Liu, Min, Zettlemoyer, Choi, and
   Hajishirzi]{liu2024infinigram}
 Jiacheng Liu, Sewon Min, Luke Zettlemoyer, Yejin Choi, and Hannaneh Hajishirzi.
@@ -31,11 +44,30 @@ Jiacheng Liu, Sewon Min, Luke Zettlemoyer, Yejin Choi, and Hannaneh Hajishirzi.
   tokens.
 \newblock \emph{arXiv preprint arXiv:2401.17377}, 2024.
 
+\bibitem[Oren et~al.(2023)Oren, Meister, Chatterji, Ladhak, and
+  Hashimoto]{oren2023proving}
+Yonatan Oren, Nicole Meister, Niladri~S Chatterji, Faisal Ladhak, and
+  Tatsunori~B Hashimoto.
+\newblock Proving test set contamination in black box language models.
+\newblock \emph{arXiv preprint arXiv:2310.17623}, 2023.
+
 \bibitem[Shi et~al.(2023)Shi, Ajith, Xia, Huang, Liu, Blevins, Chen, and
   Zettlemoyer]{shi2023detecting}
 Weijia Shi, Anirudh Ajith, Mengzhou Xia, Yangsibo Huang, Daogao Liu, Terra
   Blevins, Danqi Chen, and Luke Zettlemoyer.
 \newblock Detecting pretraining data from large language models.
 \newblock \emph{arXiv preprint arXiv:2310.16789}, 2023.
+
+\bibitem[Xu et~al.(2024)Xu, Guan, Greene, and Kechadi]{xu2024benchmark}
+Cheng Xu, Shuhao Guan, Derek Greene, and M-Tahar Kechadi.
+\newblock Benchmark data contamination of large language models: A survey.
+\newblock \emph{arXiv preprint arXiv:2406.04244}, 2024.
+
+\bibitem[Yang et~al.(2023)Yang, Chiang, Zheng, Gonzalez, and
+  Stoica]{yang2023rethinking}
+Shuo Yang, Wei-Lin Chiang, Lianmin Zheng, Joseph~E Gonzalez, and Ion Stoica.
+\newblock Rethinking benchmark and contamination for language models with
+  rephrased samples.
+\newblock \emph{arXiv preprint arXiv:2311.04850}, 2023.
 
 \end{thebibliography}

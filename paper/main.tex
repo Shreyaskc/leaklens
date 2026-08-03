@@ -88,6 +88,61 @@ every detector's docstring and every report card cites the paper the
 method comes from, so leaklens is cited alongside the primitives it
 wraps, not instead of them.
 
+\section{Related Work}
+
+\citet{xu2024benchmark} survey the contamination-detection literature and
+find exactly the fragmentation this paper opens with: methods that
+differ in what they assume access to (weights and logprobs vs.\ API-only
+black-box access), what they detect (verbatim training-set membership vs.\
+benchmark-ordering memorization vs.\ paraphrase-level leakage), and what
+guarantee they offer (a heuristic score vs.\ a statistical proof), with no
+common implementation surface. \texttt{leaklens}'s six detectors are
+chosen to span exactly these axes.
+
+\textbf{Guided/behavioral probing.} \citet{golchin2023timetravel}'s
+``guided instruction'' method -- prompting a model with a dataset name,
+partition, and an instance prefix, then scoring the completion against
+the reference with ROUGE-L/BLEURT and a GPT-4 classifier -- is the direct
+precedent for leaklens's guided-completion detector. leaklens's version
+is deliberately simplified (a single sequence-matching ratio, no
+dataset-identifying prompt, no auxiliary LLM-based classifier) in
+exchange for working identically across local and API models without an
+extra paid API call per item; the tradeoff is a coarser but
+cheaper and more portable signal.
+
+\textbf{Order- and sequence-based detection.} \citet{oren2023proving}
+formalize a related but distinct idea to leaklens's order-canary
+detector: under no contamination, every permutation of an exchangeable
+benchmark should be equally likely under the model, so a canonical
+ordering being reliably more likely than shuffled orderings is
+statistical proof of contamination, evaluated over the \emph{entire}
+benchmark's likelihood. leaklens's order canary is a lighter-weight,
+per-adjacent-pair behavioral variant of the same underlying insight
+(next-item predictability rather than whole-dataset likelihood), which
+trades statistical rigor for applicability to models that expose only
+\texttt{generate()}, not full-sequence log-likelihoods.
+
+\textbf{Rephrasing and paraphrase-level leakage.} \citet{yang2023rethinking}
+show that simple paraphrasing defeats n-gram-based decontamination and
+release a decontaminator tool that operates on a \emph{training} corpus,
+flagging and removing rephrased benchmark items before pretraining.
+leaklens's paraphrase-gap detector addresses the same underlying failure
+mode -- surface-level rephrasing hiding real contamination -- but at
+\emph{evaluation} time against an already-trained model, comparing
+cross-entropy on an item's original phrasing versus a paraphrase rather
+than filtering a training set.
+
+\textbf{Deduplication as a contamination lens.} \citet{lee2021deduplicating}
+show that near-duplicate text is pervasive in standard pretraining
+corpora and that deduplicating training data both reduces verbatim
+memorization and reduces train-test overlap, i.e.\ contamination, as a
+side effect. This motivates n-gram overlap as a detection signal
+(Section 2.2) but also underlines its main limitation: a corpus-level
+overlap check, however implemented, only ever bounds contamination via a
+specific named corpus, not via the actual (usually undisclosed) training
+mixture of the model under audit -- the scope caveat leaklens's
+n-gram-overlap detector states explicitly in every report card.
+
 \section{The leaklens Toolkit}
 
 \subsection{Plugin interface}
@@ -122,7 +177,8 @@ completion's similarity to the true continuation via a normalized
 sequence-matching ratio. High-fidelity verbatim reproduction of a
 continuation the model was never shown at inference time is a
 memorization signal in the tradition of training-data-extraction attacks
-\citep{carlini2021extracting}.
+\citep{carlini2021extracting} and, more specifically, of guided-instruction
+contamination probing \citep{golchin2023timetravel}.
 
 \textbf{Order canary.} For each adjacent pair of items in a benchmark's
 canonical published order, prompts the model with the tail of item $i$
@@ -132,7 +188,9 @@ shuffled control). A model that predicts the real next item reliably
 better than the shuffled control has memorized the benchmark's exact
 sequence, independent of item content -- a content-independent
 contamination signal in the tradition of GPT-3's own contamination
-appendix \citep{brown2020language}.
+appendix \citep{brown2020language} and a lighter-weight behavioral analog
+of the exchangeability-based statistical test of \citet{oren2023proving}
+(Section 2, Related Work).
 
 \textbf{Min-K\% Prob.} Following \citet{shi2023detecting}, computes the
 mean log-probability of the $k$\% least-likely tokens in an item's text.
@@ -148,10 +206,14 @@ low-entropy; dividing by a model-independent compressibility measure
 controls for that confound.
 
 \textbf{Paraphrase gap.} Compares a model's cross-entropy on an item's
-original text versus a semantically-equivalent paraphrase. A model that
-finds the exact original phrasing much easier than an equivalent
-paraphrase is showing surface-form memorization rather than task
-competence. This detector's logic is implemented and tested, but
+original text versus a semantically-equivalent paraphrase, targeting the
+same rephrasing-evades-detection failure mode \citet{yang2023rethinking}
+demonstrate against n-gram-based decontamination, but applied at
+evaluation time against a specific model rather than at training-set
+filtering time. A model that finds the exact original phrasing much
+easier than an equivalent paraphrase is showing surface-form memorization
+rather than task competence. This detector's logic is implemented and
+tested, but
 leaklens does not yet ship pre-generated, human-checked paraphrases for
 its six built-in benchmarks -- a documented data-construction gap, not a
 silent omission; callers may supply their own paraphrases via a field on
