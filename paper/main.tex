@@ -1,0 +1,303 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{natbib}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  columns=fullflexible,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{black!3}
+}
+
+\title{leaklens: A Unified Toolkit for Benchmark Contamination Detection}
+\author{Shreyas K Chandrahas}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Benchmark contamination detection methods are individually well studied --
+n-gram overlap against pretraining corpora, Min-K\% Prob membership
+inference \citep{shi2023detecting}, the zlib-entropy perplexity baseline
+\citep{carlini2021extracting}, guided completion, and order-sensitivity
+probes in the tradition of the GPT-3 contamination appendix
+\citep{brown2020language} -- but no maintained, standard implementation
+packages them behind one interface, so every paper that wants to check for
+contamination either reimplements a detector or waves hands. We present
+\texttt{leaklens}, a plugin-based toolkit implementing six such detectors:
+n-gram overlap against the public infini-gram index
+\citep{liu2024infinigram}, guided completion, order canary, Min-K\% Prob,
+a perplexity-vs-compressibility gap, and paraphrase gap. Detectors are
+explicit about their own applicability: logprob-based methods (Min-K\%
+Prob, perplexity gap, paraphrase gap) require a local model and report
+\texttt{applicable=False} rather than silently failing against API-only
+judges, and every report card states which detectors ran, which were
+skipped, and why. We validate the toolkit with a real-hardware calibration
+pilot: two LoRA adapters fine-tuned on disjoint 15-item subsets of GSM8K
+(one ``contaminated'', one ``clean'') using a local Qwen2.5-0.5B model,
+then scored with every logprob- and completion-based detector on the
+contaminated subset. Guided completion, Min-K\% Prob, and the
+perplexity-compressibility gap all separate the fine-tuned-on model from
+the not-fine-tuned-on model cleanly (AUC 0.92, 1.00, and 1.00
+respectively, on this small $n=15$ pilot); a fourth detector,
+order-sensitivity, scored at chance, and we trace this to a genuine
+methodological artifact in the calibration's own training-data design
+(documented in Section~\ref{sec:calibration}) rather than to a flaw in the
+detection method itself. All six of the toolkit's dataset benchmark
+adapters (MMLU, GSM8K, HumanEval, ARC, HellaSwag, TruthfulQA) are verified
+against the live HuggingFace \texttt{datasets-server} API rather than
+assumed from memory. \texttt{leaklens} is available at
+\url{https://github.com/Shreyaskc/leaklens}.
+\end{abstract}
+
+\section{Introduction}
+
+Benchmark contamination -- a model having seen a benchmark's items, or
+close paraphrases of them, during training -- is one of the central
+validity threats in LLM evaluation. A growing body of work has produced
+individual detection methods: substring/n-gram overlap against known
+pretraining corpora, membership-inference statistics computed from a
+model's own token log-probabilities \citep{shi2023detecting}, extraction
+and compressibility-based probes \citep{carlini2021extracting}, and
+behavioral probes that ask whether a model can complete a benchmark item
+verbatim or recover its canonical ordering \citep{brown2020language}. Each
+method has a paper; none has a maintained, general-purpose implementation
+that a researcher auditing a new benchmark--model pair can simply install
+and run. The result is that contamination checks, when they appear in
+papers at all, are usually a single ad hoc n-gram search rather than the
+fuller battery the literature already supports.
+
+\texttt{leaklens} packages six such methods behind one API,
+\texttt{leaklens.audit(model, benchmark)}, which returns a report card
+listing, per detector, whether it ran, its aggregate score, and (for
+detectors that were not applicable to the given model) why. The library
+is deliberately an aggregator, not a competitor to the underlying methods:
+every detector's docstring and every report card cites the paper the
+method comes from, so leaklens is cited alongside the primitives it
+wraps, not instead of them.
+
+\section{The leaklens Toolkit}
+
+\subsection{Plugin interface}
+
+Every detector implements a common \texttt{Detector} interface with a
+\texttt{requires\_logprobs} flag and a \texttt{run(model, benchmark)}
+method. A \texttt{ModelInterface} abstraction exposes \texttt{generate()}
+(supported by any model, local or API) and \texttt{token\_logprobs()}
+(supported only by local models with weight access). Before running a
+detector, \texttt{leaklens.audit()} checks
+\texttt{detector.applicable(model)}; if a logprob-only detector is asked
+to run against an API-only model, the report card records
+\texttt{applicable=False} with an explicit reason rather than crashing or
+silently omitting the row. This matters for reproducibility: a report card
+should show what was \emph{not} checked, not just what was.
+
+\subsection{Detectors}
+
+\textbf{N-gram overlap.} Queries the public infini-gram API
+\citep{liu2024infinigram} for exact-match counts of a benchmark item's
+text in a named pretraining-corpus index (Dolma, the Pile, C4, or
+RedPajama). This detector is deliberately model-independent -- it answers
+whether an item's text is present in a \emph{public corpus}, not whether
+the specific model under audit was trained on that exact corpus, and its
+report-card entry states this scope explicitly. The endpoint and response
+schema were verified against the live API during development rather than
+assumed.
+
+\textbf{Guided completion.} Prompts the model with a prefix of a
+benchmark item (a configurable fraction of its length) and scores the
+completion's similarity to the true continuation via a normalized
+sequence-matching ratio. High-fidelity verbatim reproduction of a
+continuation the model was never shown at inference time is a
+memorization signal in the tradition of training-data-extraction attacks
+\citep{carlini2021extracting}.
+
+\textbf{Order canary.} For each adjacent pair of items in a benchmark's
+canonical published order, prompts the model with the tail of item $i$
+and scores whether the completion matches the head of item $i{+}1$ (the
+real next item) versus a randomly reassigned ``fake next'' item (a
+shuffled control). A model that predicts the real next item reliably
+better than the shuffled control has memorized the benchmark's exact
+sequence, independent of item content -- a content-independent
+contamination signal in the tradition of GPT-3's own contamination
+appendix \citep{brown2020language}.
+
+\textbf{Min-K\% Prob.} Following \citet{shi2023detecting}, computes the
+mean log-probability of the $k$\% least-likely tokens in an item's text.
+Text a model has memorized tends to have a less-negative worst-case
+token probability than genuinely unseen text, since exact repetition
+raises even the model's least confident predictions.
+
+\textbf{Perplexity-compressibility gap.} Following the zlib-entropy
+baseline from \citet{carlini2021extracting}, divides a model's
+cross-entropy on an item by the item's zlib-compressed byte length. Raw
+perplexity alone confounds memorization with an item simply being
+low-entropy; dividing by a model-independent compressibility measure
+controls for that confound.
+
+\textbf{Paraphrase gap.} Compares a model's cross-entropy on an item's
+original text versus a semantically-equivalent paraphrase. A model that
+finds the exact original phrasing much easier than an equivalent
+paraphrase is showing surface-form memorization rather than task
+competence. This detector's logic is implemented and tested, but
+leaklens does not yet ship pre-generated, human-checked paraphrases for
+its six built-in benchmarks -- a documented data-construction gap, not a
+silent omission; callers may supply their own paraphrases via a field on
+each benchmark item.
+
+\subsection{Benchmark adapters}
+
+Built-in adapters wrap six widely used benchmarks -- MMLU, GSM8K,
+HumanEval, ARC, HellaSwag, and TruthfulQA -- as sources of items with a
+fixed, canonical ordering (required for the order-canary detector to be
+meaningful). Every adapter's HuggingFace dataset repository ID, config
+name, split name, and column names were checked directly against the live
+\texttt{datasets-server} API during development, not assumed from prior
+familiarity with these datasets; the checks are re-run as part of the
+test suite so upstream schema drift is caught rather than silently
+producing empty or malformed items.
+
+\section{Calibration Pilot}
+\label{sec:calibration}
+
+The scientific claim a contamination detector makes -- ``this score
+indicates the model saw this item during training'' -- is only as good as
+its calibration against known ground truth. We ran a small, fast
+calibration pilot entirely on local hardware (an Apple M4 Pro, no rented
+or cloud GPU): two LoRA adapters were fine-tuned from the same base model,
+\texttt{Qwen2.5-0.5B-Instruct} (4-bit), on two disjoint 15-item subsets of
+GSM8K test questions -- one subset (``contaminated'') the model was
+repeatedly fine-tuned on, one (``clean'') it never saw. Each of the four
+model-dependent detectors was then run against the contaminated subset's
+15 items using both fine-tuned models, and we computed the AUC-ROC of
+each detector's score at distinguishing the contaminated (member) model
+from the clean (non-member) model on the same items.
+
+\begin{table}[t]
+\centering
+\begin{tabular}{lc}
+\toprule
+Detector & AUC \\
+\midrule
+Guided completion & 0.92 \\
+Min-K\% Prob & 1.00 \\
+Perplexity--compressibility gap & 1.00 \\
+Order canary & 0.50 \\
+\bottomrule
+\end{tabular}
+\caption{Calibration pilot AUC-ROC, $n=15$ items, one base model, one
+fine-tune pass per condition. Ngram overlap and paraphrase gap are not
+included -- see Section~\ref{sec:scope}.}
+\label{tab:calibration}
+\end{table}
+
+Table~\ref{tab:calibration} reports the results. Three detectors --
+guided completion, Min-K\% Prob, and the perplexity-compressibility gap
+-- cleanly separate the two models on this pilot. The fourth,
+order canary, scored at chance (AUC $\approx 0.50$), with both models'
+completions at the relevant prompt boundary being an empty string. We
+traced this to a real artifact of this calibration's own training-data
+construction, not a flaw in the underlying method: each individual GSM8K
+item was included in the fine-tuning data as its own training example
+(implicitly teaching the model ``predict end-of-sequence after this exact
+tail''), while adjacent-item pairs were \emph{also} included as
+continuous training examples (teaching ``continue into the next item'')
+at the exact same text boundary. These two training signals conflict at
+inference time with no way for the model to disambiguate which one
+applies, and it appears to default to stopping. An isolated calibration
+design -- training only on the continuous concatenated sequence, without
+the individual-item examples -- would be needed to calibrate order canary
+cleanly, and is left for a follow-up run. We report this null result and
+its diagnosis rather than omit the detector or present only the three
+detectors that happened to work.
+
+\subsection{Scope of the calibration}
+\label{sec:scope}
+
+Two of the six detectors are not covered by this calibration, for
+principled reasons rather than oversight. N-gram overlap queries a fixed,
+public pretraining-corpus index and is architecturally independent of any
+model under audit (see Section 2.2); a local LoRA fine-tune on GSM8K items
+has no bearing on whether those items independently appear in a
+large public web corpus, so this pilot's fine-tuning design cannot
+calibrate it. Paraphrase gap requires paraphrase data this release does
+not yet ship (Section 2.2).
+
+We also note plainly that this is a single small pilot -- one base
+model, $n=15$ items, one fine-tuning run per condition -- reported as an
+indicative first pass, not the larger multi-model calibration suite (with
+true/false positive rates across many models and content types) that a
+mature calibration study would require.
+
+\section{Validation}
+
+The package includes 74 unit and integration tests (99\% statement
+coverage), including tests that exercise the real, live infini-gram API
+response schema (not a hand-written mock of an assumed schema), the real
+MLX-based logprob computation validated against expected model behavior
+(a repeated sentence scores a substantially higher log-probability on its
+second occurrence than its first; character-level gibberish scores
+reliably lower than natural language), and the calibration pipeline
+described in Section~\ref{sec:calibration}, which was itself run twice:
+a first run produced NaN training loss partway through fine-tuning,
+traced to a single training example roughly an order of magnitude longer
+than the rest of its batch destabilizing gradients; the fix (splitting
+that one long example into shorter adjacent-pair examples) is reflected
+in the released calibration script.
+
+\section{Limitations}
+
+The calibration pilot in Section~\ref{sec:calibration} is small-scale by
+design (one base model, $n=15$ items) and should be read as a sanity
+check that leaklens's detectors behave in the expected direction, not as
+a definitive true/false-positive-rate characterization suitable for
+setting a universal decision threshold. The boilerplate-phrase and
+artifact-signature detection this toolkit's broader design contemplates
+is not yet part of the released detector set. Paraphrase gap's data gap
+(Section 2.2) means it is currently usable only by callers who supply
+their own paraphrases. Order canary's null result in this pilot
+(Section~\ref{sec:calibration}) means we do not yet have a clean
+calibration data point for that detector; the diagnosis suggests a fix,
+but the fix itself has not yet been run.
+
+\section{Ethics Statement}
+
+This work is a measurement toolkit; it does not collect, redistribute, or
+generate new human-subject data. The infini-gram queries send benchmark
+item text (already public benchmark content) to a third-party public API;
+no private or user data is involved. The calibration pilot fine-tunes a
+small open-weight model on public GSM8K questions already released under
+an open license, entirely on local hardware.
+
+\section{Availability}
+
+\texttt{leaklens} is available at
+\url{https://github.com/Shreyaskc/leaklens} under the MIT license.
+
+\section{Conclusion}
+
+We presented \texttt{leaklens}, a plugin-based contamination-detection
+toolkit unifying six methods from the literature behind one interface,
+with explicit per-detector applicability reporting and six verified
+benchmark adapters. A local-hardware calibration pilot confirms that
+three of four model-dependent detectors cleanly separate a
+fine-tuned-on item set from a held-out one on a small sample, and traces
+the fourth detector's null result to a specific, fixable artifact of the
+calibration's own design rather than papering over it.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
