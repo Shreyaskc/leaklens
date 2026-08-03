@@ -1,0 +1,38 @@
+{
+  "base_model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+  "n_items_per_set": 15,
+  "n_repeats": 20,
+  "lora_iters": 100,
+  "detectors": {
+    "guided_completion": {
+      "auc": 0.9244444444444444,
+      "n_member_scored": 15,
+      "n_nonmember_scored": 15,
+      "member_aggregate": 0.8934984467341862,
+      "nonmember_aggregate": 0.42925972684692676
+    },
+    "order_canary": {
+      "auc": 0.5025510204081632,
+      "n_member_scored": 14,
+      "n_nonmember_scored": 14,
+      "member_aggregate": 0.0,
+      "nonmember_aggregate": 0.0
+    },
+    "min_k_prob": {
+      "auc": 1.0,
+      "n_member_scored": 15,
+      "n_nonmember_scored": 15,
+      "member_aggregate": -0.02883759887301538,
+      "nonmember_aggregate": -11.847795930889088
+    },
+    "perplexity_gap": {
+      "auc": 1.0,
+      "n_member_scored": 15,
+      "n_nonmember_scored": 15,
+      "member_aggregate": 2.360921408761051e-05,
+      "nonmember_aggregate": 0.010917734778165005
+    }
+  },
+  "scope_note": "Small, fast, single-model calibration pass (indicative, not definitive). ngram_overlap and paraphrase_gap excluded -- see this script's module docstring for why.",
+  "order_canary_null_result_explanation": "order_canary scored ~chance (AUC~0.50, both member and non-member aggregates exactly 0.0) because model.generate() returned an empty string at the exact prompt boundary used: each individual-item training example implicitly teaches 'predict EOS after this exact 200-char tail' (that tail IS an item's true ending), while the adjacent-pair training examples simultaneously teach 'continue into the next item' AT THE SAME boundary. These two training signals conflict at inference time with no way to disambiguate, and the model appears to default to EOS. This is a real limitation of THIS calibration design (mixing individual-item and pair examples), not evidence that order_canary's underlying method doesn't work -- an isolated design (train ONLY on the continuous concatenated sequence, no individual-item EOS-terminated examples) would be needed to calibrate it cleanly, and is left for a follow-up run."
+}

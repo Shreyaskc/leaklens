@@ -15,8 +15,14 @@ dist/
 # Keep local-only; upload directly to OpenReview instead.
 paper/arr/
 
-# Phase 3 calibration fine-tune outputs and the registry's raw audit run
-# outputs -- large, regenerable, published separately (HF / registry site)
-# rather than committed here.
-calibration_runs/
+# Phase 3 calibration fine-tune outputs: LoRA adapter weights and derived
+# training data are large-ish and fully regenerable from
+# scripts/run_calibration.py, so they're excluded -- but
+# calibration_runs/calibration_results.json itself (the actual finding,
+# a few KB) is deliberately NOT excluded and should be committed.
+calibration_runs/adapter_*/
+calibration_runs/*_data/
+
+# The registry's raw audit run outputs -- large, regenerable, published
+# separately (HF / registry site) rather than committed here.
 registry_data/

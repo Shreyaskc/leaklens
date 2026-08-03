@@ -37,11 +37,13 @@ class MLXModelInterface(ModelInterface):
 
     supports_logprobs = True
 
-    def __init__(self, model_repo: str):
+    def __init__(self, model_repo: str, adapter_path: str | None = None):
         from mlx_lm import load
 
-        self.name = model_repo
-        self._model, self._tokenizer = load(model_repo)
+        self.name = model_repo if adapter_path is None else f"{model_repo}+adapter:{adapter_path}"
+        self._model, self._tokenizer = (
+            load(model_repo, adapter_path=adapter_path) if adapter_path else load(model_repo)
+        )
 
     def generate(self, prompt: str, max_tokens: int) -> str:
         from mlx_lm import generate
